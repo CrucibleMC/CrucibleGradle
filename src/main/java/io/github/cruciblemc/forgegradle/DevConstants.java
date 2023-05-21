@@ -1,6 +1,13 @@
 package io.github.cruciblemc.forgegradle;
 
-final class DevConstants {
+import groovy.lang.Closure;
+import org.gradle.api.Project;
+
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.PrintStream;
+
+public final class DevConstants {
   private DevConstants() {
 
   }
@@ -90,6 +97,7 @@ final class DevConstants {
   static final String WORKSPACE_ZIP = "eclipse-workspace-dev.zip";
   static final String WORKSPACE = "eclipse";
   static final String ECLIPSE_CLEAN = WORKSPACE + "/Clean";
+  static final String ECLIPSE_CLEAN_PROJECT = ":" + ECLIPSE_CLEAN.replace('/', ':');
   static final String ECLIPSE_CLEAN_SRC = ECLIPSE_CLEAN + "/src/main/java";
   static final String ECLIPSE_CLEAN_START = ECLIPSE_CLEAN + "/src/main/start";
   static final String ECLIPSE_CLEAN_RES = ECLIPSE_CLEAN + "/src/main/resources";
@@ -102,6 +110,7 @@ final class DevConstants {
   static final String ECLIPSE_FORGE_START = ECLIPSE_FORGE + "/src/main/start";
   static final String ECLIPSE_FORGE_RES = ECLIPSE_FORGE + "/src/main/resources";
   static final String ECLIPSE_CDN = WORKSPACE + "/cauldron";
+  static final String ECLIPSE_CAULDRON_PROJECT = ":" + ECLIPSE_CDN.replace('/', ':');
   static final String ECLIPSE_CDN_SRC = ECLIPSE_CDN + "/src/main/java";
   static final String ECLIPSE_CDN_RES = ECLIPSE_CDN + "/src/main/resources";
   static final String ECLIPSE_EDU = WORKSPACE + "/McEdu";
@@ -146,7 +155,25 @@ final class DevConstants {
   static final String BUKKIT_SOURCES = "{BUKKIT_DIR}/src/main/java";
   static final String EXTRACTED_RES = "{BUILD_DIR}/extractedResources";
 
-  // CrowdIn Stuff
-  static final String CROWDIN_ZIP = "{BUILD_DIR}/crowdin-localizations.zip";
-  static final String CROWDIN_FORGEID = "minecraft-forge";
+  static final Closure<Boolean> CALL_FALSE = new Closure<>(null) {
+    public Boolean call(Object o) {
+      return false;
+    }
+  };
+
+  public static PrintStream getTaskLogStream(Project project, String name) {
+    return getTaskLogStream(project.getBuildDir(), name);
+  }
+
+  public static PrintStream getTaskLogStream(File buildDir, String name) {
+    final File taskLogs = new File(buildDir, "taskLogs");
+    taskLogs.mkdirs();
+    final File logFile = new File(taskLogs, name);
+    logFile.delete(); //Delete the old log
+    try {
+      return new PrintStream(logFile);
+    } catch (FileNotFoundException ignored) {
+    }
+    return null; // Should never get to here
+  }
 }

@@ -1,22 +1,25 @@
 package io.github.cruciblemc.forgegradle;
 
-import groovy.lang.Closure;
+import io.github.cruciblemc.forgegradle.tasks.DelayedJar;
 import io.github.cruciblemc.forgegradle.tasks.DeterministicDecompileTask;
 import io.github.cruciblemc.forgegradle.tasks.ExtractS2SRangeTask;
+import io.github.cruciblemc.forgegradle.tasks.UncodeJarTask;
+import io.github.cruciblemc.forgegradle.tasks.dev.GenDevProjectsTask;
 import io.github.cruciblemc.forgegradle.tasks.dev.ObfuscateTask;
 import io.github.cruciblemc.forgegradle.tasks.dev.SubprojectTask;
-import io.github.cruciblemc.forgegradle.tasks.dev.GenDevProjectsTask;
 import net.minecraftforge.gradle.common.Constants;
 import net.minecraftforge.gradle.delayed.DelayedFile;
-import net.minecraftforge.gradle.tasks.*;
-import net.minecraftforge.gradle.tasks.abstractutil.DelayedJar;
+import net.minecraftforge.gradle.tasks.ApplyS2STask;
+import net.minecraftforge.gradle.tasks.ProcessJarTask;
+import net.minecraftforge.gradle.tasks.ProcessSrcJarTask;
+import net.minecraftforge.gradle.tasks.RemapSourcesTask;
 import net.minecraftforge.gradle.tasks.abstractutil.ExtractTask;
-import net.minecraftforge.gradle.tasks.dev.*;
+import net.minecraftforge.gradle.tasks.dev.GenBinaryPatches;
+import net.minecraftforge.gradle.tasks.dev.GeneratePatches;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.Task;
 import org.gradle.api.file.ConfigurableFileTree;
 import org.gradle.api.file.DuplicatesStrategy;
-import org.gradle.api.java.archives.Manifest;
 import org.gradle.api.specs.Spec;
 import org.gradle.api.tasks.Delete;
 
@@ -34,24 +37,6 @@ public class CrucibleDevPlugin extends DevBasePlugin {
     getExtension().setForgeDir("forge");
     getExtension().setBukkitDir("bukkit");
 
-        /* Not needed for anything and is broken. **
-        // configure genSrg task.
-        GenSrgTask genSrgTask = (GenSrgTask) project.getTasks().getByName("genSrgs");
-        {
-            String[] paths = {DevConstants.FML_RESOURCES, DevConstants.FORGE_RESOURCES, DevConstants.EXTRA_RESOURCES};
-            for (String path : paths)
-            {
-                for (File f : project.fileTree(delayedFile(path).call()).getFiles())
-                {
-                    if(f.getPath().endsWith(".exc"))
-                        genSrgTask.addExtraExc(f);
-                    else if(f.getPath().endsWith(".srg"))
-                        genSrgTask.addExtraSrg(f);
-                }
-            }
-        }
-        */
-
     createJarProcessTasks();
     createProjectTasks();
     createEclipseTasks();
@@ -62,19 +47,21 @@ public class CrucibleDevPlugin extends DevBasePlugin {
     // the master setup task.
     Task task = makeTask("setupCrucible", DefaultTask.class);
     task.dependsOn("extractCauldronSources", "generateProjects", "eclipse", "copyAssets");
-    task.setGroup("Cauldron");
+    task.setGroup("crucible");
+    task.setDescription("Configures the development workspace for Crucible.");
 
     // clean packages
     {
       Delete del = makeTask("cleanPackages", Delete.class);
       del.delete("build/distributions");
+      del.setDescription("Cleans up old packages");
     }
 
-//        // the master task.
+    // the master task.
     task = makeTask("buildPackages");
-    //task.dependsOn("launch4j", "createChangelog", "packageUniversal", "packageInstaller", "genJavadocs");
-    task.dependsOn("cleanPackages", "createChangelog", "packageUniversal", "packageInstaller");
-    task.setGroup("Cauldron");
+    task.dependsOn("cleanPackages", "packageServer", "packageApi");
+    task.setGroup("crucible");
+    task.setDescription("Builds all distribution package for Crucible");
   }
 
   @Override
@@ -181,20 +168,15 @@ public class CrucibleDevPlugin extends DevBasePlugin {
       task.from(delayedFile(ZIP_RENAMED_CDN));
       task.into(delayedFile(ECLIPSE_CDN_RES));
       task.dependsOn("remapCauldronJar", "extractWorkspace");
-      task.onlyIf(new Spec() {
+      task.onlyIf((Spec) __ -> {
+        File dir = delayedFile(ECLIPSE_CDN_RES).call();
+        if (!dir.exists())
+          return true;
 
-        @Override
-        public boolean isSatisfiedBy(Object arg0) {
-          File dir = delayedFile(ECLIPSE_CDN_RES).call();
-          if (!dir.exists())
-            return true;
+        ConfigurableFileTree tree = project.fileTree(dir);
+        tree.include("**/*.java");
 
-          ConfigurableFileTree tree = project.fileTree(dir);
-          tree.include("**/*.java");
-
-          return !tree.isEmpty();
-        }
-
+        return !tree.isEmpty();
       });
     }
 
@@ -204,47 +186,32 @@ public class CrucibleDevPlugin extends DevBasePlugin {
       task.from(delayedFile(ZIP_RENAMED_CDN));
       task.into(delayedFile(ECLIPSE_CDN_SRC));
       task.dependsOn("extractCauldronResources");
-      task.onlyIf(new Spec() {
+      task.onlyIf((Spec) __ -> {
+        File dir = delayedFile(ECLIPSE_CDN_SRC).call();
+        if (!dir.exists())
+          return true;
 
-        @Override
-        public boolean isSatisfiedBy(Object arg0) {
-          File dir = delayedFile(ECLIPSE_CDN_SRC).call();
-          if (!dir.exists())
-            return true;
+        ConfigurableFileTree tree = project.fileTree(dir);
+        tree.include("**/*.java");
 
-          ConfigurableFileTree tree = project.fileTree(dir);
-          tree.include("**/*.java");
-
-          return !tree.isEmpty();
-        }
-
+        return !tree.isEmpty();
       });
     }
   }
 
   private void createProjectTasks() {
-//        FMLVersionPropTask sub = makeTask("createVersionPropertiesFML", FMLVersionPropTask.class);
-//        {
-//            //sub.setTasks("createVersionProperties");
-//            //sub.setBuildFile(delayedFile("{FML_DIR}/build.gradle"));
-//            sub.setVersion(new Closure<String>(project) {
-//                @Override
-//                public String call(Object... args) {
-//                    return FmlDevPlugin.getVersionFromGit(project, new File(delayedString("{FML_DIR}").call()));
-//                }
-//            });
-//            sub.setOutputFile(delayedFile(FML_VERSIONF));
-//        }
-
     ExtractTask extract = makeTask("extractRes", ExtractTask.class);
     {
       extract.into(delayedFile(EXTRACTED_RES));
-      for (File f : delayedFile("src/main").call().listFiles()) {
-        if (f.isDirectory())
-          continue;
-        String path = f.getAbsolutePath();
-        if (path.endsWith(".jar") || path.endsWith(".zip"))
-          extract.from(delayedFile(path));
+      var projectFiles = delayedFile("src/main").call().listFiles();
+      if (projectFiles != null) {
+        for (File f : projectFiles) {
+          if (f.isDirectory())
+            continue;
+          String path = f.getAbsolutePath();
+          if (path.endsWith(".jar") || path.endsWith(".zip"))
+            extract.from(delayedFile(path));
+        }
       }
     }
 
@@ -266,6 +233,7 @@ public class CrucibleDevPlugin extends DevBasePlugin {
     {
       task.setJson(delayedFile(EXTRA_JSON_DEV));
       task.setTargetDir(delayedFile(ECLIPSE_CDN));
+      task.setUseLibrariesConfiguration(true);
 
       task.addSource(delayedFile(ECLIPSE_CDN_SRC));
       task.addSource(delayedFile(EXTRA_SOURCES));
@@ -289,13 +257,13 @@ public class CrucibleDevPlugin extends DevBasePlugin {
   private void createEclipseTasks() {
     SubprojectTask task = makeTask("eclipseClean", SubprojectTask.class);
     {
-      task.setBuildFile(":eclipse:Clean");
+      task.setProjectName(ECLIPSE_CLEAN_PROJECT);
       task.setTasks("eclipse");
       task.dependsOn("extractCleanSource", "generateProjects");
     }
     task = makeTask("eclipseCauldron", SubprojectTask.class);
     {
-      task.setBuildFile(":eclipse:cauldron");
+      task.setProjectName(ECLIPSE_CAULDRON_PROJECT);
       task.setTasks("eclipse");
       task.dependsOn("extractCauldronSources", "generateProjects");
     }
@@ -361,18 +329,8 @@ public class CrucibleDevPlugin extends DevBasePlugin {
       task2.setOriginalPrefix("../src-base/minecraft");
       task2.setChangedPrefix("../src-work/minecraft");
       task2.getTaskDependencies().getDependencies(task2).clear(); // remove all the old dependants.
-      task2.setGroup("Cauldron");
-    }
-
-    if (false) // COMMENT OUT SRG PATCHES!
-    {
-      task2.setPatchDir(delayedFile(EXTRA_PATCH_DIR));
-      task2.setOriginal(delayedFile(PATCH_CLEAN)); // was ECLIPSE_CLEAN_SRC
-      task2.setChanged(delayedFile(PATCH_DIRTY)); // ECLIPSE_FORGE_SRC
-      task2.setOriginalPrefix("../src-base/minecraft");
-      task2.setChangedPrefix("../src-work/minecraft");
-      task2.dependsOn("retroMapCauldron", "retroMapClean");
-      task2.setGroup("Cauldron");
+      task2.setGroup("Crucible");
+      task2.setDescription("Create patches from your changes within the dev workspace");
     }
 
     Delete clean = makeTask("cleanCauldron", Delete.class);
@@ -389,10 +347,10 @@ public class CrucibleDevPlugin extends DevBasePlugin {
       obf.setReverse(false);
       obf.setPreFFJar(delayedFile(JAR_SRG_CDN));
       obf.setOutJar(delayedFile(REOBF_TMP));
-      obf.setBuildFile(":eclipse:cauldron");
+      obf.setProjectName(ECLIPSE_CAULDRON_PROJECT);
       obf.setMethodsCsv(delayedFile(METHODS_CSV));
       obf.setFieldsCsv(delayedFile(FIELDS_CSV));
-      obf.dependsOn("genSrgs", ":eclipse:cauldron:jar");
+      obf.dependsOn("genSrgs", ECLIPSE_CAULDRON_PROJECT + ":jar");
     }
 
     GenBinaryPatches task3 = makeTask("genBinPatches", GenBinaryPatches.class);
@@ -410,50 +368,22 @@ public class CrucibleDevPlugin extends DevBasePlugin {
       task3.dependsOn("obfuscateJar", "compressDeobfData");
     }
 
-        /*
-        ForgeVersionReplaceTask task4 = makeTask("ciWriteBuildNumber", ForgeVersionReplaceTask.class);
-        {
-            task4.getOutputs().upToDateWhen(Constants.CALL_FALSE);
-            task4.setOutputFile(delayedFile(FORGE_VERSION_JAVA));
-            task4.setReplacement(delayedString("{BUILD_NUM}"));
-        }
-        SubmoduleChangelogTask task5 = makeTask("fmlChangelog", SubmoduleChangelogTask.class);
-        {
-            task5.setSubmodule(delayedFile("fml"));
-            task5.setModuleName("FML");
-            task5.setPrefix("MinecraftForge/FML");
-        }
-        */
+    var uncode = makeTask("uncodeCrucible", UncodeJarTask.class);
+    {
+      uncode.setDescription("Removes all code from minecraft classes");
+      uncode.setInputJar(delayedFile(ECLIPSE_CDN + "/build/libs/cauldron.jar"));
+      uncode.setOutJar(delayedFile("build/tmp/crucibleUncoded.jar"));
+      uncode.dependsOn(ECLIPSE_CAULDRON_PROJECT + ":jar");
+    }
   }
 
-  @SuppressWarnings("serial")
   private void createPackageTasks() {
 
-    ChangelogTask log = makeTask("createChangelog", ChangelogTask.class);
+    final DelayedJar uni = makeTask("packageServer", DelayedJar.class);
     {
-      log.getOutputs().upToDateWhen(Constants.CALL_FALSE);
-      log.setServerRoot(delayedString("{JENKINS_SERVER}"));
-      log.setJobName(delayedString("{JENKINS_JOB}"));
-      log.setAuthName(delayedString("{JENKINS_AUTH_NAME}"));
-      log.setAuthPassword(delayedString("{JENKINS_AUTH_PASSWORD}"));
-      log.setTargetBuild(delayedString("{BUILD_NUM}"));
-      log.setOutput(delayedFile(CHANGELOG));
-    }
-
-        /*
-        VersionJsonTask vjson = makeTask("generateVersionJson", VersionJsonTask.class);
-        {
-            vjson.setInput(delayedFile(INSTALL_PROFILE));
-            vjson.setOutput(delayedFile(VERSION_JSON));
-            vjson.dependsOn("generateInstallJson");
-        }
-        */
-
-    final DelayedJar uni = makeTask("packageUniversal", DelayedJar.class);
-    {
-      uni.getArchiveClassifier().set(delayedString("B{BUILD_NUM}").call());
+      uni.getArchiveClassifier().set("server");
       uni.getInputs().file(delayedFile(EXTRA_JSON_REL));
-      uni.getOutputs().upToDateWhen(Constants.CALL_FALSE);
+      uni.getOutputs().upToDateWhen(CALL_FALSE);
       uni.from(delayedZipTree(BINPATCH_TMP));
       uni.from(delayedFileTree(EXTRA_RESOURCES));
       uni.from(delayedFileTree(FORGE_RESOURCES));
@@ -472,37 +402,20 @@ public class CrucibleDevPlugin extends DevBasePlugin {
       uni.exclude("devbinpatches.pack.lzma");
       uni.setDuplicatesStrategy(DuplicatesStrategy.EXCLUDE);
       uni.setIncludeEmptyDirs(false);
-      uni.setManifest(new Closure<Object>(project) {
-        public Object call() {
-          Manifest mani = (Manifest) getDelegate();
-          mani.getAttributes().put("Main-Class", delayedString("{MAIN_CLASS}").call());
-          mani.getAttributes().put("TweakClass", delayedString("{FML_TWEAK_CLASS}").call());
-          mani.getAttributes().put("Class-Path", getServerClassPath(delayedFile(EXTRA_JSON_REL).call()));
-          return null;
-        }
-      });
-
-//            uni.doLast(new Action<Task>()
-//            {
-//                @Override
-//                public void execute(Task arg0)
-//                {
-//                    try
-//                    {
-//                        signJar(((DelayedJar)arg0).getArchivePath(), "forge", "*/*/**", "!paulscode/**");
-//                    }
-//                    catch (Exception e)
-//                    {
-//                        Throwables.propagate(e);
-//                    }
-//                }
-//            });
 
       uni.getDestinationDirectory().set(delayedFile("{BUILD_DIR}/distributions").call());
-      //uni.dependsOn("genBinPatches", "createChangelog", "createVersionPropertiesFML", "generateVersionJson");
-      uni.dependsOn("genBinPatches", "createChangelog");
+      uni.dependsOn("genBinPatches");
     }
     project.getArtifacts().add("archives", uni);
+
+    final DelayedJar lib = makeTask("packageApi", DelayedJar.class);
+    {
+      lib.from(delayedZipTree("build/tmp/crucibleUncoded.jar"));
+      lib.getDestinationDirectory().set(delayedFile("{BUILD_DIR}/libs").call());
+      lib.setIncludeEmptyDirs(false);
+      lib.dependsOn("uncodeCrucible");
+    }
+    project.getArtifacts().add("archives", lib);
   }
 
   @Override

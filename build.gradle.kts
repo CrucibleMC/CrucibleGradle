@@ -15,7 +15,7 @@ repositories {
 }
 
 dependencies {
-    // TODO? figure a wau to use the runtime dependencies of FG?
+    // TODO? figure a way to use the runtime dependencies of FG?
     implementation("org.ow2.asm:asm:9.4")
     implementation("org.ow2.asm:asm-tree:9.4")
     implementation("com.google.guava:guava:31.1-jre")
@@ -38,16 +38,30 @@ dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter")
 
     implementation("com.github.tony19:named-regexp:0.2.3")
+
+    // Java 9+ syntax
+    annotationProcessor("com.github.bsideup.jabel:jabel-javac-plugin:0.4.2")
+    compileOnly("com.github.bsideup.jabel:jabel-javac-plugin:0.4.2")
+
+    // Lombok
+    compileOnly("org.projectlombok:lombok:1.18.26")
+    annotationProcessor("org.projectlombok:lombok:1.18.26")
 }
 
 tasks.test {
     useJUnitPlatform()
 }
 
-java {
-    toolchain {
-        languageVersion.set(JavaLanguageVersion.of(8))
-    }
+tasks.named("compileJava").configure {
+    this as JavaCompile
+    sourceCompatibility = "16" // for the IDE support
+    options.release.set(8)
+
+    javaCompiler.set(
+            javaToolchains.compilerFor {
+                languageVersion.set(JavaLanguageVersion.of(16))
+            }
+    )
 }
 
 gradlePlugin {
@@ -55,6 +69,52 @@ gradlePlugin {
         create("crucible") {
             id = "crucible"
             implementationClass = "io.github.cruciblemc.forgegradle.CrucibleDevPlugin"
+        }
+    }
+}
+
+publishing {
+    publications {
+        create<MavenPublication>("mavenJava") {
+            from(components["java"])
+            artifactId = base.archivesName.get()
+
+            pom {
+                name.set(project.base.archivesName.get())
+                description.set("Gradle plugin for Crucible")
+                url.set("https://github.com/CrucibleMC/CrucibleGradle")
+
+                scm {
+                    url.set("https://github.com/CrucibleMC/CrucibleGradle")
+                    connection.set("scm:git:git://github.com/CrucibleMC/CrucibleGradle.git")
+                    developerConnection.set("scm:git:git@github.com:CrucibleMC/CrucibleGradle.git")
+                }
+
+                issueManagement {
+                    system.set("github")
+                    url.set("https://github.com/CrucibleMC/CrucibleGradle/issues")
+                }
+
+                licenses {
+                    license {
+                        name.set("Lesser GNU Public License, Version 2.1")
+                        url.set("https://www.gnu.org/licenses/lgpl-2.1.html")
+                        distribution.set("repo")
+                    }
+                }
+
+                developers {
+                    developer {
+                        id.set("juanmuscaria")
+                        name.set("juanmuscaria")
+                    }
+                }
+            }
+        }
+        repositories {
+            maven(buildDir.absolutePath + "/repo") {
+                name = "filesystem"
+            }
         }
     }
 }

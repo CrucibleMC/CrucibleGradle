@@ -12,6 +12,7 @@ public class DevExtension extends BaseExtension {
   private String bukkitDir;
   private String mainClass;
   private String tweakClass;
+  private String[] repos = new String[0];
   private boolean makeJavadoc = true;
   private String installerVersion = "null";
   private Action<Project> subprojects = null;
@@ -80,7 +81,7 @@ public class DevExtension extends BaseExtension {
 
   @SuppressWarnings("rawtypes")
   public void subprojects(Closure subprojects) {
-    this.subprojects = new ClosureBackedAction<Project>(subprojects);
+    this.subprojects = new ClosureBackedAction<>(subprojects);
   }
 
   public Action<Project> getCleanProject() {
@@ -106,7 +107,7 @@ public class DevExtension extends BaseExtension {
 
   @SuppressWarnings("rawtypes")
   public void dirtyProject(Closure subprojects) {
-    this.dirtyProject = new ClosureBackedAction<Project>(subprojects);
+    this.dirtyProject = new ClosureBackedAction<>(subprojects);
   }
 
   public boolean getMakeJavadoc() {
@@ -115,5 +116,13 @@ public class DevExtension extends BaseExtension {
 
   public void setMakeJavadoc(boolean makeJavadoc) {
     this.makeJavadoc = makeJavadoc;
+  }
+
+  public String[] getRepos() {
+    return repos;
+  }
+
+  public void setRepos(String[] repos) {
+    this.repos = repos;
   }
 }

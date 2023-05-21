@@ -14,23 +14,23 @@ import java.util.jar.Manifest;
  */
 
 class FixedJarInputStream extends JarInputStream {
-    private Manifest manifest;
+  private Manifest manifest;
 
-    public FixedJarInputStream(File file, boolean verify) throws IOException {
-        super(new FileInputStream(file), verify);
-        JarFile jar = new JarFile(file);
-        JarEntry manifestEntry = jar.getJarEntry(JarFile.MANIFEST_NAME);
-        try {
-            if (manifestEntry != null) {
-                this.manifest = new Manifest(jar.getInputStream(manifestEntry));
-            }
-        } finally {
-            jar.close();
-        }
+  public FixedJarInputStream(File file, boolean verify) throws IOException {
+    super(new FileInputStream(file), verify);
+    JarFile jar = new JarFile(file);
+    JarEntry manifestEntry = jar.getJarEntry(JarFile.MANIFEST_NAME);
+    try {
+      if (manifestEntry != null) {
+        this.manifest = new Manifest(jar.getInputStream(manifestEntry));
+      }
+    } finally {
+      jar.close();
     }
+  }
 
-    @Override
-    public Manifest getManifest() {
-        return this.manifest;
-    }
+  @Override
+  public Manifest getManifest() {
+    return this.manifest;
+  }
 }

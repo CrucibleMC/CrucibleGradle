@@ -1,90 +1,84 @@
 package io.github.cruciblemc.forgegradle.tasks.dev;
 
-import io.github.cruciblemc.forgegradle.CrucibleDevPlugin;
-import net.minecraftforge.gradle.delayed.DelayedFile;
 import org.gradle.api.Action;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
-import org.gradle.api.internal.AbstractTask;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.TaskAction;
 
-import java.io.File;
-import java.io.IOException;
 import java.util.LinkedList;
 import java.util.Set;
 
 public class SubprojectTask extends DefaultTask {
-    @Internal
-    private String buildFile;
-    @Internal
-    private String tasks;
-    private LinkedList<Action<Project>> configureProject = new LinkedList<Action<Project>>();
-    @Internal
-    private Action<Task> configureTask;
+  @Internal
+  private String projectName;
+  @Internal
+  private String tasks;
+  private final LinkedList<Action<Project>> configureProject = new LinkedList<>();
+  @Internal
+  private Action<Task> configureTask;
 
-    @TaskAction
-    public void doTask() throws IOException {
+  @TaskAction
+  public void doTask() {
+    Project childProj = getProject().project(projectName);
 
-        Project childProj = getProject().project(buildFile);
-
-        // configure the project
-        for (Action<Project> act : configureProject) {
-            if (act != null)
-                act.execute(childProj);
-        }
-
-        for (String task : tasks.split(" ")) {
-            Set<Task> list = childProj.getTasksByName(task, false);
-            for (Task t : list) {
-                if (configureTask != null)
-                    configureTask.execute(t);
-                executeTask((AbstractTask) t);
-            }
-        }
-
-        System.gc();
+    // configure the project
+    for (Action<Project> act : configureProject) {
+      if (act != null)
+        act.execute(childProj);
     }
 
-    private void executeTask(final AbstractTask task) {
-        for (Object dep : task.getTaskDependencies().getDependencies(task)) {
-            executeTask((AbstractTask) dep);
-        }
-
-        if (!task.getState().getExecuted()) {
-            getLogger().lifecycle(task.getPath());
-            for (Action<? super Task> action : task.getActions()) {
-                action.execute(task);
-            }
-        }
+    for (String task : tasks.split(" ")) {
+      Set<Task> list = childProj.getTasksByName(task, false);
+      for (Task t : list) {
+        if (configureTask != null)
+          configureTask.execute(t);
+        executeTask((DefaultTask) t);
+      }
     }
 
-    public String getBuildFile() {
-        return buildFile;
+    System.gc();
+  }
+
+  private void executeTask(final DefaultTask task) {
+    for (Object dep : task.getTaskDependencies().getDependencies(task)) {
+      executeTask((DefaultTask) dep);
     }
 
-    public void setBuildFile(String buildFile) {
-        this.buildFile = buildFile;
+    if (!task.getState().getExecuted()) {
+      getLogger().lifecycle(task.getPath());
+      for (Action<? super Task> action : task.getActions()) {
+        action.execute(task);
+      }
     }
+  }
 
-    public String getTasks() {
-        return tasks;
-    }
+  public String getProjectName() {
+    return projectName;
+  }
 
-    public void setTasks(String tasks) {
-        this.tasks = tasks;
-    }
+  public void setProjectName(String projectName) {
+    this.projectName = projectName;
+  }
 
-    public Action<Task> getConfigureTask() {
-        return configureTask;
-    }
+  public String getTasks() {
+    return tasks;
+  }
 
-    public void setConfigureTask(Action<Task> configureTask) {
-        this.configureTask = configureTask;
-    }
+  public void setTasks(String tasks) {
+    this.tasks = tasks;
+  }
 
-    public void configureProject(Action<Project> action) {
-        configureProject.add(action);
-    }
+  public Action<Task> getConfigureTask() {
+    return configureTask;
+  }
+
+  public void setConfigureTask(Action<Task> configureTask) {
+    this.configureTask = configureTask;
+  }
+
+  public void configureProject(Action<Project> action) {
+    configureProject.add(action);
+  }
 }
