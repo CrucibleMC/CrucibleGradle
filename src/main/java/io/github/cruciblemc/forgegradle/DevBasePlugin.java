@@ -1,10 +1,6 @@
 package io.github.cruciblemc.forgegradle;
 
 import com.google.common.base.Throwables;
-import com.google.common.io.Files;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 import groovy.lang.Closure;
 import io.github.cruciblemc.forgegradle.tasks.dev.ObfuscateTask;
 import net.minecraftforge.gradle.common.BasePlugin;
@@ -23,7 +19,6 @@ import org.gradle.api.Project;
 import org.gradle.api.tasks.Copy;
 
 import java.io.File;
-import java.nio.charset.Charset;
 
 public class DevBasePlugin extends BasePlugin<DevExtension> {
   protected static final String[] JAVA_FILES = new String[]{"**.java", "*.java", "**/*.java"};
@@ -109,6 +104,8 @@ public class DevBasePlugin extends BasePlugin<DevExtension> {
     obfuscateJar.configureProject(getExtension().getSubprojects());
     obfuscateJar.configureProject(getExtension().getDirtyProject());
 
+    project.getTasks().getByName("getAssetsIndex").dependsOn("getVersionJson");
+
     ExtractTask extractNatives = makeTask("extractNativesNew", ExtractTask.class);
     {
       extractNatives.exclude("META-INF", "META-INF/**", "META-INF/*");
@@ -163,27 +160,6 @@ public class DevBasePlugin extends BasePlugin<DevExtension> {
   protected DevExtension getOverlayExtension() {
     // never happens.
     return null;
-  }
-
-  protected String getServerClassPath(File json) {
-    try {
-      JsonObject node = JsonParser.parseString(Files.asCharSource(json, Charset.defaultCharset()).read()).getAsJsonObject();
-
-      StringBuilder buf = new StringBuilder();
-
-      for (JsonElement libElement : node.get("versionInfo").getAsJsonObject().get("libraries").getAsJsonArray()) {
-        JsonObject lib = libElement.getAsJsonObject();
-
-        if (lib.has("serverreq") && lib.get("serverreq").getAsBoolean()) {
-          String[] pts = lib.get("name").getAsString().split(":");
-          buf.append(String.format("libraries/%s/%s/%s/%s-%s.jar ", pts[0].replace('.', '/'), pts[1], pts[2], pts[1], pts[2]));
-        }
-      }
-      buf.append(delayedString("minecraft_server.{MC_VERSION}.jar").call());
-      return buf.toString();
-    } catch (Exception e) {
-      throw new RuntimeException(e);
-    }
   }
 
   @Override

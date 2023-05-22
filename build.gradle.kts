@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "io.github.cruciblemc"
-version = "1.0-SNAPSHOT"
+version = "1.1-SNAPSHOT"
 
 repositories {
     mavenCentral()
@@ -54,12 +54,12 @@ tasks.test {
 
 tasks.named("compileJava").configure {
     this as JavaCompile
-    sourceCompatibility = "16" // for the IDE support
+    sourceCompatibility = "17" // for the IDE support
     options.release.set(8)
 
     javaCompiler.set(
             javaToolchains.compilerFor {
-                languageVersion.set(JavaLanguageVersion.of(16))
+                languageVersion.set(JavaLanguageVersion.of(17))
             }
     )
 }

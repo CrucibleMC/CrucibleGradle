@@ -1,5 +1,6 @@
 package io.github.cruciblemc.forgegradle;
 
+import com.anatawa12.forge.gradle.separated.SeparatedLauncher;
 import io.github.cruciblemc.forgegradle.tasks.DelayedJar;
 import io.github.cruciblemc.forgegradle.tasks.DeterministicDecompileTask;
 import io.github.cruciblemc.forgegradle.tasks.ExtractS2SRangeTask;
@@ -30,7 +31,13 @@ import static io.github.cruciblemc.forgegradle.DevConstants.*;
 public class CrucibleDevPlugin extends DevBasePlugin {
   @Override
   public void applyPlugin() {
+    System.setProperty("com.anatawa12.forge.gradle.no-forge-maven-warn", "true");
+    System.setProperty("com.anatawa12.forge.gradle.no-maven-central-warn", "true");
     super.applyPlugin();
+
+    // FIXME: Work around unknown version on FG
+    project.getDependencies().add(SeparatedLauncher.configurationName,
+            "com.anatawa12.forge:separated:1.2-1.1.0");
 
     // set folders
     getExtension().setFmlDir("forge/fml");
